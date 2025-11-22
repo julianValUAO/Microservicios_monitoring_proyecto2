@@ -16,26 +16,55 @@ Arquitectura de microservicios con FastAPI, Kafka, Prometheus y Grafana. Proyect
 
 ## Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        API Gateway                          │
-│                         (Traefik)                           │
-└────────────┬─────────────────────────────┬──────────────────┘
-             │                             │
-    ┌────────▼────────┐          ┌─────────▼───────────┐
-    │  User Service   │          │ Notification Service│
-    │    (FastAPI)    │────────▶│     (Kafka)         │
-    └────────┬────────┘          └─────────┬───────────┘
-             │                             │
-    ┌────────▼────────┐         ┌─────────▼───────────┐
-    │     MySQL       │         │    Prometheus       │
-    │   (Database)    │         │   (Métricas)        │
-    └─────────────────┘         └─────────┬───────────┘
-                                          │
-                                 ┌────────▼────────┐
-                                 │    Grafana      │
-                                 │  (Dashboards)   │
-                                 └─────────────────┘
+```mermaid
+graph TB
+    subgraph Internet
+        Client[Cliente/Usuario]
+    end
+    
+    subgraph "API Gateway Layer"
+        Traefik[Traefik<br/>API Gateway]
+    end
+    
+    subgraph "Microservices Layer"
+        UserService[User Service<br/>FastAPI<br/>:8000]
+        NotificationService[Notification Service<br/>Python<br/>:8001]
+    end
+    
+    subgraph "Data Layer"
+        MySQL[(MySQL<br/>Database<br/>:3306)]
+    end
+    
+    subgraph "Messaging Layer"
+        Kafka[Kafka Broker<br/>:9092]
+        Zookeeper[Zookeeper<br/>:2181]
+    end
+    
+    subgraph "Monitoring Layer"
+        Prometheus[Prometheus<br/>Metrics<br/>:9090]
+        Grafana[Grafana<br/>Dashboards<br/>:3000]
+        Adminer[Adminer<br/>DB Admin<br/>:8082]
+    end
+    
+    Client -->|HTTP| Traefik
+    Traefik -->|/api/users| UserService
+    Traefik -->|/api/notifications| NotificationService
+    UserService -->|SQL| MySQL
+    UserService -->|Publish Event| Kafka
+    NotificationService -->|Consume Event| Kafka
+    Kafka -->|Coordination| Zookeeper
+    Prometheus -->|Scrape /metrics| UserService
+    Prometheus -->|Scrape /metrics| NotificationService
+    Grafana -->|Query PromQL| Prometheus
+    Adminer -->|Manage| MySQL
+    
+    style Traefik fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
+    style UserService fill:#00D084,stroke:#fff,stroke-width:2px,color:#fff
+    style NotificationService fill:#00D084,stroke:#fff,stroke-width:2px,color:#fff
+    style MySQL fill:#4479A1,stroke:#fff,stroke-width:2px,color:#fff
+    style Kafka fill:#231F20,stroke:#fff,stroke-width:2px,color:#fff
+    style Prometheus fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
+    style Grafana fill:#F46800,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ## Tecnologías
