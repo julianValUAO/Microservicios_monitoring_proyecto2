@@ -1,0 +1,42 @@
+NAME                                       READY   STATUS    RESTARTS      AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+pod/adminer-848c4494df-wv7f2               1/1     Running   0             48m   10.244.0.18   minikube   <none>           <none>
+pod/grafana-5cb7484668-h7hh4               1/1     Running   0             48m   10.244.0.16   minikube   <none>           <none>
+pod/kafka-0                                1/1     Running   0             27m   10.244.0.22   minikube   <none>           <none>
+pod/mysql-5db8cbd6fd-lzk9l                 1/1     Running   0             49m   10.244.0.11   minikube   <none>           <none>
+pod/notification-service-dfbb9874d-bssn6   1/1     Running   9 (30m ago)   48m   10.244.0.12   minikube   <none>           <none>
+pod/notification-service-dfbb9874d-jczld   1/1     Running   9 (30m ago)   48m   10.244.0.13   minikube   <none>           <none>
+pod/prometheus-664c46cdb4-rnp9b            1/1     Running   0             48m   10.244.0.17   minikube   <none>           <none>
+pod/user-service-54dc5d7cbf-klgs7          1/1     Running   0             48m   10.244.0.14   minikube   <none>           <none>
+pod/user-service-54dc5d7cbf-lh6xc          1/1     Running   0             48m   10.244.0.15   minikube   <none>           <none>
+pod/zookeeper-5d9bb979f-22lwd              1/1     Running   0             51m   10.244.0.9    minikube   <none>           <none>
+
+NAME                           TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE   SELECTOR
+service/adminer                NodePort    10.108.105.122   <none>        8080:30082/TCP   48m   app=adminer
+service/grafana                NodePort    10.106.191.57    <none>        3000:30030/TCP   48m   app=grafana
+service/kafka                  ClusterIP   None             <none>        9092/TCP         27m   app=kafka
+service/mysql                  ClusterIP   10.108.59.73     <none>        3306/TCP         49m   app=mysql
+service/notification-service   ClusterIP   10.105.141.60    <none>        8001/TCP         48m   app=notification-service
+service/prometheus             NodePort    10.102.27.46     <none>        9090:30090/TCP   48m   app=prometheus
+service/user-service           NodePort    10.100.232.191   <none>        8000:30080/TCP   48m   app=user-service
+service/zookeeper              ClusterIP   10.104.104.196   <none>        2181/TCP         51m   app=zookeeper
+
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS             IMAGES                                          SELECTOR
+deployment.apps/adminer                1/1     1            1           48m   adminer                adminer:latest                                  app=adminer
+deployment.apps/grafana                1/1     1            1           48m   grafana                grafana/grafana:latest                          app=grafana
+deployment.apps/mysql                  1/1     1            1           49m   mysql                  mysql:8.0                                       app=mysql
+deployment.apps/notification-service   2/2     2            2           48m   notification-service   julianandvalencia/notification-service:latest   app=notification-service
+deployment.apps/prometheus             1/1     1            1           48m   prometheus             prom/prometheus:latest                          app=prometheus
+deployment.apps/user-service           2/2     2            2           48m   user-service           julianandvalencia/user-service:latest           app=user-service
+deployment.apps/zookeeper              1/1     1            1           51m   zookeeper              confluentinc/cp-zookeeper:7.4.1                 app=zookeeper
+
+NAME                                             DESIRED   CURRENT   READY   AGE   CONTAINERS             IMAGES                                          SELECTOR
+replicaset.apps/adminer-848c4494df               1         1         1       48m   adminer                adminer:latest                                  app=adminer,pod-template-hash=848c4494df
+replicaset.apps/grafana-5cb7484668               1         1         1       48m   grafana                grafana/grafana:latest                          app=grafana,pod-template-hash=5cb7484668
+replicaset.apps/mysql-5db8cbd6fd                 1         1         1       49m   mysql                  mysql:8.0                                       app=mysql,pod-template-hash=5db8cbd6fd
+replicaset.apps/notification-service-dfbb9874d   2         2         2       48m   notification-service   julianandvalencia/notification-service:latest   app=notification-service,pod-template-hash=dfbb9874d
+replicaset.apps/prometheus-664c46cdb4            1         1         1       48m   prometheus             prom/prometheus:latest                          app=prometheus,pod-template-hash=664c46cdb4
+replicaset.apps/user-service-54dc5d7cbf          2         2         2       48m   user-service           julianandvalencia/user-service:latest           app=user-service,pod-template-hash=54dc5d7cbf
+replicaset.apps/zookeeper-5d9bb979f              1         1         1       51m   zookeeper              confluentinc/cp-zookeeper:7.4.1                 app=zookeeper,pod-template-hash=5d9bb979f
+
+NAME                     READY   AGE   CONTAINERS   IMAGES
+statefulset.apps/kafka   1/1     27m   kafka        confluentinc/cp-kafka:7.4.1

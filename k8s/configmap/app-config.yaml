@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: microservices
+data:
+  KAFKA_BROKER_URL: "kafka:9092"
+  KAFKA_TOPIC: "user_events"
+  MYSQL_HOST: "mysql"
+  MYSQL_DATABASE: "user_db"
+  PROMETHEUS_PORT: "9090"
