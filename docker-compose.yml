@@ -1,10 +1,216 @@
-version: "3.8"
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  prometheus_data:
+  grafana_data:
 
 services:
+  # ============================================
+  # ZOOKEEPER - Coordinación para Kafka
+  # ============================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.1
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "${ZOOKEEPER_PORT}:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # KAFKA - Message Broker
+  # ============================================
+  kafka:
+    image: confluentinc/cp-kafka:7.4.1
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # MYSQL - Base de Datos
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    hostname: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # ADMINER - DB Admin (Administrador de MySQL)
+  # ============================================
+  adminer:
+    image: adminer:latest
+    container_name: db-admin
+    hostname: adminer
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${ADMINER_PORT}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DESIGN: pepa-linha
+    networks:
+      - microservices-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adminer.rule=Host(`adminer.localhost`)"
+      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+
+  # ============================================
+  # USER SERVICE - Microservicio de Usuarios
+  # ============================================
+  user-service:
+    build: ./user_service
+    container_name: user-service
+    hostname: user-service
+    env_file: .env
+    ports:
+      - "${USER_SERVICE_PORT}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/user-service"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user-service.rule=Host(`localhost`) && PathPrefix(`/api/users`)"
+      - "traefik.http.services.user-service.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.user-strip.stripprefix.prefixes=/api/users"
+      - "traefik.http.routers.user-service.middlewares=user-strip"
+
+  # ============================================
+  # NOTIFICATION SERVICE - Microservicio de Notificaciones
+  # ============================================
+  notification-service:
+    build: ./notification_service
+    container_name: notification-service
+    hostname: notification-service
+    env_file: .env
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT}:8001"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.notification-service.rule=Host(`localhost`) && PathPrefix(`/api/notifications`)"
+      - "traefik.http.services.notification-service.loadbalancer.server.port=8001"
+
+  # ============================================
+  # PROMETHEUS - Monitoreo y Métricas
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_m2
+    hostname: prometheus_m2
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - microservices-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # ============================================
+  # GRAFANA - Dashboard de Visualización
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_m2
+    hostname: grafana_m2
+    depends_on:
+      - prometheus
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - microservices-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # ============================================
+  # TRAEFIK - API Gateway
+  # ============================================
   api-gateway:
-    image: traefik:v2.4 # traefik
-    hostname: api-gateway
+    image: traefik:v2.10
     container_name: api-gateway
+    hostname: api-gateway
     depends_on:
       - user-service
       - notification-service
@@ -13,77 +219,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8080:8080"
+      - "${GATEWAY_PORT}:8080"  # Dashboard de Traefik
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./traefik.yml:/etc/traefik/traefik.yml"
-
-  user-service:
-    build: ./user_service
-    env_file: .env
-    container_name: user-service
-    hostname: user-service
-    restart: always
-    depends_on:
-      - kafka
-      - mysql
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.user-service.rule=Host(`127.0.0.1`)"
-      - "traefik.http.services.user-service.loadbalancer.server.port=8000"
-
-  notification-service:
-    build: ./notification_service
-    container_name: notification-service
-    restart: always
-    hostname: notification-service
-    env_file: .env
-    depends_on:
-      - user-service
-
-  mysql:
-    image: arm64v8/mysql:8.0 # mysql:8.0
-    hostname: mysql
-    container_name: mysql
-    environment:
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-    volumes:
-      - mysql_data:/var/lib/mysql
-
-  prometheus:
-    image: prom/prometheus
-    hostname: prometheus
-    container_name: prometheus
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    ports:
-      - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.4.1 # confluentinc/cp-kafka
-    container_name: kafka
-    hostname: kafka
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.1 # zookeeper
-    container_name: zookeeper
-    hostname: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-
-volumes:
-  mysql_data:
-  prometheus_data:
+    networks:
+      - microservices-net

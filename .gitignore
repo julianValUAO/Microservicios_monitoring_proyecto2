@@ -1,2 +1,37 @@
-.env
 dockerfile
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Docker volumes
+mysql_data/
+prometheus_data/
+grafana_data/
+
+# Logs
+*.log
+
+# Kubernetes
+*.kubeconfig
